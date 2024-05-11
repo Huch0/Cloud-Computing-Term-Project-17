@@ -40,7 +40,15 @@ def detect_labels(photo):
     client = boto3.client('rekognition')
 
     with open(photo, 'rb') as image:
+        # For using the default model
         response = client.detect_labels(Image={'Bytes': image.read()})
+
+        # For using a custom model
+        # We should use AWS Resource Access Manager (RAM) to share the model with the account that the server is using
+        # Arn : Amazon Resource Name
+
+        # response = client.detect_labels(Image={'Bytes': image.read()},
+        #                                 ProjectVersionArn='arn:aws:rekognition:us-west-2:123456789012:project/version/your-model/1.0')
 
     print('Detected labels in ' + photo)
     for label in response['Labels']:
