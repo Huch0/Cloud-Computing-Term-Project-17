@@ -1,7 +1,9 @@
-from flask import Flask
-from flask import send_from_directory
-from flask import request
-from werkzeug.utils import secure_filename
+from flask import Flask, send_from_directory, request, jsonify
+import base64
+import requests
+from bs4 import BeautifulSoup
+from io import BytesIO
+
 import boto3
 
 app = Flask(__name__, static_folder='./static')
@@ -17,23 +19,64 @@ def upload_image():
     if request.method == 'POST':
         user_image = request.files['user_image']
         if user_image:
-            user_image.save(app.static_folder +
-                            '/uploads/' + secure_filename(user_image.filename))
+            response = recognize_celebrities(user_image)
+            if len(response['CelebrityFaces']) == 0:
+                response = {
+                    'found': False,
+                }
+                return response
 
-            # detect_labels(app.static_folder + '/uploads/' +
-            #               secure_filename(user_image.filename))
-            response = detect_labels(app.static_folder + 'test_dog.jpg')
+            most_similar_celebrity = response['CelebrityFaces'][0]
+            print('most_similar_celebrity : ', most_similar_celebrity)
 
-            # Delete the uploaded file
-            # os.remove(app.static_folder + '/uploads/' +
-            #           secure_filename(user_image.filename))
+            # Fetch the HTML content of the Wikipedia page
+            page_url = most_similar_celebrity['Urls'][0]
+            if not page_url.startswith(('http://', 'https://')):
+                page_url = 'https://' + page_url
+            page_response = requests.get(page_url)
 
-            # Return the most confident label and its confidence
-            return response['Labels'][0]['Name'] + ' : ' + str(response['Labels'][0]['Confidence'])
+            # Parse the HTML to find the URL of the first image
+            soup = BeautifulSoup(page_response.text, 'html.parser')
+            image_tag = soup.find('img')
+            image_url = 'https:' + image_tag['src']
+
+            # Fetch the image from the URL
+            image_response = requests.get(image_url)
+
+            # Create a BytesIO object from the image content
+            image_content = BytesIO(image_response.content)
+
+            # Convert the image to a data URL
+            image_data_url = 'data:image/jpeg;base64,' + base64.b64encode(image_content.read()).decode()
+
+            # Create the JSON response
+            response = {
+                'found': True,
+                'name': most_similar_celebrity['Name'],
+                'match_confidence': most_similar_celebrity['MatchConfidence'],
+                'info_url': most_similar_celebrity['Urls'][0],
+                'image': image_data_url
+            }
+
+            return jsonify(response)
 
         else:
             # Announce user that no file was uploaded
             return 'No file uploaded'
+
+
+def recognize_celebrities(image):
+
+    client = boto3.client('rekognition')
+    try:
+        response = client.recognize_celebrities(
+            Image={'Bytes': image.read()})
+    except:
+        response = {'CelebrityFaces': []}
+        return response
+
+    print(response)
+    return response
 
 
 def detect_labels(photo):
@@ -41,7 +84,11 @@ def detect_labels(photo):
 
     with open(photo, 'rb') as image:
         # For using the default model
-        response = client.detect_labels(Image={'Bytes': image.read()})
+        try:
+            response = client.detect_labels(Image={'Bytes': image.read()})
+        except:
+            response = {'Labels': []}
+            return response
 
         # For using a custom model
         # We should use AWS Resource Access Manager (RAM) to share the model with the account that the server is using

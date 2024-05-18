@@ -22,3 +22,6 @@ Thumbs.db
 *.pyc
 *.pyo
 *.pyd
+
+# Only for local development
+*local*
