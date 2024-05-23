@@ -47,7 +47,7 @@
         }
 
         #uploadDisplay,
-        #resultDisplay {
+        #referenceDisplay {
             margin: 0 50px;
             width: 300px;
             height: 300px;
@@ -65,55 +65,100 @@
             /* 연한 회색 텍스트 */
         }
 
-        #result {
-            margin: 20px auto;
+        .result-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        #resultDisplay {
             width: 300px;
+            height: 300px;
+            border: 3px solid #ccc;
+            /* 회색 테두리 */
+            background-color: #fff;
+            /* 배경색을 흰색으로 설정 */
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #aaa;
+            /* 연한 회색 텍스트 */
+        }
+
+        .description-box {
+            margin: 20px auto;
             padding: 10px;
             border: 3px solid #ccc;
             /* 회색 테두리 */
             background-color: #fff;
             /* 배경색을 흰색으로 설정 */
-            display: none;
+            width: 600px;
+        }
+
+        .celebrity-description,
+        .comparison-description {
+            margin: 20px auto;
+            padding: 10px;
+            border: 3px solid #ccc;
+            /* 회색 테두리 */
+            background-color: #fff;
+            /* 배경색을 흰색으로 설정 */
+            width: 600px;
         }
     </style>
 </head>
 
 <body>
     <h1>유명인 닮은꼴 찾기</h1>
-    <input type="file" id="fileInput" accept="image/*" onchange="previewFile()">
+    <input type="file" id="fileInput" accept="image/*" onchange="previewFile(this, 'uploadDisplay')">
+    <input type="file" id="referenceInput" accept="image/*" onchange="previewFile(this, 'referenceDisplay')">
     <div class="image-container">
         <div id="uploadDisplay">업로드한 사진이 여기에 표시됩니다.</div>
-        <div id="resultDisplay">결과 사진이 여기에 표시됩니다.</div>
+        <div id="referenceDisplay">참조 이미지가 여기에 표시됩니다.</div>
     </div>
-    <div id="result">
-        <p><span id="resultText"></span></p>
-        <p>이름: <span id="celebrityName"></span></p>
-        <p>유사도: <span id="matchConfidence"></span></p>
-        <p>정보: <a id="infoUrl" href="" target="_blank"></a></p>
+    <div class="result-container">
+        <div id="resultDisplay">
+            결과 사진이 여기에 표시됩니다.<br><br>
+            대응되는 연예인이 없거나,<br>
+            해당 URL에 이미지가 없는 경우<br>
+            결과 사진이 표시되지 않습니다.</div>
+    </div>
+    <div class="celebrity-description">
+        <p id="celebrityDescription"></p>
+        <p id="similarityDescription"></p>
+        <p id="urlDescription"></p>
+    </div>
+    <div class="comparison-description">
+        <p id="comparisonDescription"></p>
     </div>
     <button onclick="showResult()">결과 보기</button>
 
     <script>
-        function previewFile() {
-            const file = document.getElementById('fileInput').files[0];
+        function previewFile(input, displayId) {
+            const file = input.files[0];
             const reader = new FileReader();
             reader.onloadend = function () {
-                document.getElementById('uploadDisplay').style.backgroundImage = 'url(' + reader.result + ')';
-                document.getElementById('uploadDisplay').innerText = '';
+                document.getElementById(displayId).style.backgroundImage = 'url(' + reader.result + ')';
+                document.getElementById(displayId).innerText = '';
             }
             if (file) {
                 reader.readAsDataURL(file);
             }
         }
+
         function showResult() {
-            if (document.getElementById('fileInput').files.length === 0) {
-                alert('사진을 업로드해주세요.');
+            if (document.getElementById('fileInput').files.length === 0 || document.getElementById('referenceInput').files.length === 0) {
+                alert('모든 사진을 업로드해주세요.\nUsage: [INPUT image || REFERENCE image]');
                 return;
             }
-            const resultImage = document.getElementById('resultDisplay');
 
+            const resultImage = document.getElementById('resultDisplay');
             const formData = new FormData();
             formData.append('user_image', document.getElementById('fileInput').files[0]);
+            formData.append('reference_image', document.getElementById('referenceInput').files[0]);
 
             fetch('/upload', {
                 method: 'POST',
@@ -124,42 +169,30 @@
                         resultImage.innerText = '오류가 발생했습니다.';
                         return;
                     }
-
                     response.json()
                         .then(data => {
                             console.log(data);
+                            const celebrityDescription = document.getElementById('celebrityDescription');
+                            const urlDescription = document.getElementById('urlDescription');
+                            const similarityDescription = document.getElementById('similarityDescription');
 
-                            const result = document.getElementById('result');
-                            const resultText = document.getElementById('resultText');
-                            const celebrityName = document.getElementById('celebrityName');
-                            const matchConfidence = document.getElementById('matchConfidence');
-                            const infoUrl = document.getElementById('infoUrl');
+                            const comparisonDescription = document.getElementById('comparisonDescription');
 
-                            result.style.display = 'block';
+                            if (!data.found) {
+                                celebrityDescription.innerText = data.message;
+                                similarityDescription.innerText = '';
+                                urlDescription.innerText = '';
 
-                            if (data.found == false) {
-                                resultText.innerText = '유명인을 찾을 수 없습니다.';
-                                celebrityName.innerText = '';
-                                matchConfidence.innerText = '';
-                                infoUrl.innerText = '';
-                                infoUrl.href = '';
+                                comparisonDescription.innerText = 'Ref-비교 유사도: ' + (data.comparison_confidence || 0) + '%';
+
                                 resultImage.style.backgroundImage = '';
-                                resultImage.innerText = '결과 사진이 여기에 표시됩니다.';
+                                resultImage.innerText = '';
                             } else {
-                                resultText.innerText = '유명인을 찾았습니다.';
-                                celebrityName.innerText = data.name;
-                                matchConfidence.innerText = data.match_confidence + '%';
+                                celebrityDescription.innerText = '유명인: ' + data.name;
+                                similarityDescription.innerText = '유명인과의 유사도: ' + data.match_confidence + '%';
+                                urlDescription.innerText = 'URL 정보: ' + data.info_url + '\n\n' + data.message;
 
-                                let url = data.info_url;
-                                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                                    url = 'http://' + url;
-                                }
-                                console.log(url);
-
-                                infoUrl.innerText = url;
-                                infoUrl.href = url;
-
-                                // Use the image URL to display the image
+                                comparisonDescription.innerText = 'Ref image와의 비교 유사도: ' + (data.comparison_confidence || 0) + '%';
                                 resultImage.style.backgroundImage = 'url(' + data.image + ')';
                                 resultImage.innerText = '';
                             }

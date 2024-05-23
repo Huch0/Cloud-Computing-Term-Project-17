@@ -3,7 +3,7 @@ import base64
 import requests
 from bs4 import BeautifulSoup
 from io import BytesIO
-
+from urllib.parse import urljoin
 import boto3
 
 app = Flask(__name__, static_folder='./static')
@@ -17,88 +17,107 @@ def index():
 @app.route("/upload", methods=['POST'])
 def upload_image():
     if request.method == 'POST':
-        user_image = request.files['user_image']
-        if user_image:
-            response = recognize_celebrities(user_image)
-            if len(response['CelebrityFaces']) == 0:
-                response = {
+        user_image = request.files.get('user_image')
+        ref_image = request.files.get('reference_image')
+        if user_image and ref_image:
+            user_response = recognize_celebrities(user_image)
+            user_image.seek(0)  # Reset the file pointer to the beginning of the file
+            compare_response = compare_faces(user_image, ref_image)
+
+            if len(user_response['CelebrityFaces']) == 0:
+                comparison_confidence = 0
+
+                if 'FaceMatches' in compare_response and len(compare_response['FaceMatches']) > 0:
+                    comparison_confidence = compare_response['FaceMatches'][0]['Similarity']
+
+                return jsonify({
                     'found': False,
-                }
-                return response
+                    'comparison_confidence': comparison_confidence,
+                    'message': "저희 데이터베이스에는 유사도가 높은 연예인이 존재하지 않습니다...\n\nRef 인물과 유사도는 아래와 같습니다!"
+                })
 
-            most_similar_celebrity = response['CelebrityFaces'][0]
-            print('most_similar_celebrity : ', most_similar_celebrity)
+            most_similar_celebrity = user_response['CelebrityFaces'][0]
 
-            # Fetch the HTML content of the Wikipedia page
+            # Fetch the HTML content of the celebrity's Wikipedia page
             page_url = most_similar_celebrity['Urls'][0]
             if not page_url.startswith(('http://', 'https://')):
                 page_url = 'https://' + page_url
-            page_response = requests.get(page_url)
+            try:
+                page_response = requests.get(page_url)
+                soup = BeautifulSoup(page_response.text, 'html.parser')
+                image_tag = soup.find('img')
+                image_exist = 'alt' in image_tag.attrs
 
-            # Parse the HTML to find the URL of the first image
-            soup = BeautifulSoup(page_response.text, 'html.parser')
-            image_tag = soup.find('img')
-            image_url = 'https:' + image_tag['src']
+                if (image_exist):
+                    comparison_confidence = 0
+                    if 'FaceMatches' in compare_response and len(compare_response['FaceMatches']) > 0:
+                        comparison_confidence = compare_response['FaceMatches'][0]['Similarity']
 
-            # Fetch the image from the URL
-            image_response = requests.get(image_url)
+                    return jsonify({
+                        'found': True,
+                        'name': most_similar_celebrity['Name'],
+                        'match_confidence': most_similar_celebrity['MatchConfidence'],
+                        'comparison_confidence': comparison_confidence,
+                        'info_url': most_similar_celebrity['Urls'][0],
+                        'message': 'Celebrity found! But no image available'
+                    })
+                # print(f'image tag: {test}')
+                if image_tag and 'src' in image_tag.attrs:
+                    image_url = urljoin(page_url, image_tag['src'])
+                    image_response = requests.get(image_url)
+                    image_content = BytesIO(image_response.content)
+                    image_data_url = 'data:image/jpeg;base64,' + base64.b64encode(image_content.read()).decode()
 
-            # Create a BytesIO object from the image content
-            image_content = BytesIO(image_response.content)
+                    comparison_confidence = 0
+                    if 'FaceMatches' in compare_response and len(compare_response['FaceMatches']) > 0:
+                        comparison_confidence = compare_response['FaceMatches'][0]['Similarity']
 
-            # Convert the image to a data URL
-            image_data_url = 'data:image/jpeg;base64,' + base64.b64encode(image_content.read()).decode()
-
-            # Create the JSON response
-            response = {
-                'found': True,
-                'name': most_similar_celebrity['Name'],
-                'match_confidence': most_similar_celebrity['MatchConfidence'],
-                'info_url': most_similar_celebrity['Urls'][0],
-                'image': image_data_url
-            }
-
-            return jsonify(response)
+                    return jsonify({
+                        'found': True,
+                        'name': most_similar_celebrity['Name'],
+                        'match_confidence': most_similar_celebrity['MatchConfidence'],
+                        'comparison_confidence': comparison_confidence,
+                        'info_url': most_similar_celebrity['Urls'][0],
+                        'image': image_data_url,
+                        'message': ''
+                    })
+            except requests.exceptions.RequestException as e:
+                return jsonify({'found': False, 'error': 'Error fetching page or image', 'details': str(e)})
 
         else:
-            # Announce user that no file was uploaded
-            return 'No file uploaded'
+            return jsonify({'error': 'Both user image and reference image are required'})
 
 
 def recognize_celebrities(image):
-
-    client = boto3.client('rekognition')
+    session = boto3.Session(profile_name="jihun")
+    client = session.client('rekognition')
     try:
         response = client.recognize_celebrities(
             Image={'Bytes': image.read()})
-    except:
-        response = {'CelebrityFaces': []}
-        return response
+    except Exception as e:
+        print(f"Error in Rekognition: {str(e)}")
+        return {'CelebrityFaces': []}
 
+    print(response)
+    print()
+    return response
+
+
+def compare_faces(source_image, target_image):
+    session = boto3.Session(profile_name="jihun")
+    client = session.client('rekognition')
+    try:
+        response = client.compare_faces(
+            SourceImage={'Bytes': source_image.read()},
+            TargetImage={'Bytes': target_image.read()},
+            SimilarityThreshold=0
+        )
+    except Exception as e:
+        print(f"Error in Rekognition: {str(e)}")
+        return {'FaceMatches': []}
     print(response)
     return response
 
 
-def detect_labels(photo):
-    client = boto3.client('rekognition')
-
-    with open(photo, 'rb') as image:
-        # For using the default model
-        try:
-            response = client.detect_labels(Image={'Bytes': image.read()})
-        except:
-            response = {'Labels': []}
-            return response
-
-        # For using a custom model
-        # We should use AWS Resource Access Manager (RAM) to share the model with the account that the server is using
-        # Arn : Amazon Resource Name
-
-        # response = client.detect_labels(Image={'Bytes': image.read()},
-        #                                 ProjectVersionArn='arn:aws:rekognition:us-west-2:123456789012:project/version/your-model/1.0')
-
-    print('Detected labels in ' + photo)
-    for label in response['Labels']:
-        print(label['Name'] + ' : ' + str(label['Confidence']))
-
-    return response
+if __name__ == "__main__":
+    app.run(debug=False)
