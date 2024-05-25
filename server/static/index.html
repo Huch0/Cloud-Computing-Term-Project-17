@@ -13,8 +13,7 @@
         }
 
         h1 {
-            color: #001f3f;
-            /* 네이비 색상 */
+            color: #001f3f; /* 네이비 색상 */
             text-align: center;
         }
 
@@ -25,9 +24,8 @@
         }
 
         button {
-            margin: 30px auto 10px auto;
-            background-color: #001f3f;
-            /* 네이비 색상 */
+            margin: 10px auto;
+            background-color: #001f3f; /* 네이비 색상 */
             color: white;
             border: none;
             padding: 10px 20px;
@@ -46,55 +44,60 @@
             margin-top: 20px;
         }
 
+        .image-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 50px;
+        }
+
+        .label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+
         #uploadDisplay,
         #referenceDisplay {
-            margin: 0 50px;
             width: 300px;
             height: 300px;
-            border: 3px solid #ccc;
-            /* 회색 테두리 */
-            background-color: #fff;
-            /* 배경색을 흰색으로 설정 */
+            border: 3px solid #ccc; /* 회색 테두리 */
+            background-color: #fff; /* 배경색을 흰색으로 설정 */
             background-size: cover;
             background-position: center;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 16px;
-            color: #aaa;
-            /* 연한 회색 텍스트 */
+            color: #aaa; /* 연한 회색 텍스트 */
         }
 
         .result-container {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
             margin-top: 20px;
         }
 
         #resultDisplay {
             width: 300px;
             height: 300px;
-            border: 3px solid #ccc;
-            /* 회색 테두리 */
-            background-color: #fff;
-            /* 배경색을 흰색으로 설정 */
+            border: 3px solid #ccc; /* 회색 테두리 */
+            background-color: #fff; /* 배경색을 흰색으로 설정 */
             background-size: cover;
             background-position: center;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 16px;
-            color: #aaa;
-            /* 연한 회색 텍스트 */
+            color: #aaa; /* 연한 회색 텍스트 */
         }
 
         .description-box {
             margin: 20px auto;
             padding: 10px;
-            border: 3px solid #ccc;
-            /* 회색 테두리 */
-            background-color: #fff;
-            /* 배경색을 흰색으로 설정 */
+            border: 3px solid #ccc; /* 회색 테두리 */
+            background-color: #fff; /* 배경색을 흰색으로 설정 */
             width: 600px;
         }
 
@@ -102,37 +105,63 @@
         .comparison-description {
             margin: 20px auto;
             padding: 10px;
-            border: 3px solid #ccc;
-            /* 회색 테두리 */
-            background-color: #fff;
-            /* 배경색을 흰색으로 설정 */
+            border: 3px solid #ccc; /* 회색 테두리 */
+            background-color: #fff; /* 배경색을 흰색으로 설정 */
             width: 600px;
+            text-align: center; /* 중앙 정렬 추가 */
+        }
+
+        .text-box {
+            width: 300px;
+            margin: 10px auto;
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: center;
+            font-size: 16px;
+            color: #333;
+            background-color: #fff;
         }
     </style>
 </head>
 
 <body>
     <h1>유명인 닮은꼴 찾기</h1>
-    <input type="file" id="fileInput" accept="image/*" onchange="previewFile(this, 'uploadDisplay')">
-    <input type="file" id="referenceInput" accept="image/*" onchange="previewFile(this, 'referenceDisplay')">
     <div class="image-container">
-        <div id="uploadDisplay">업로드한 사진이 여기에 표시됩니다.</div>
-        <div id="referenceDisplay">참조 이미지가 여기에 표시됩니다.</div>
+        <div class="image-box">
+            <label for="fileInput" class="label">User Image</label>
+            <input type="file" id="fileInput" accept="image/*" onchange="previewFile(this, 'uploadDisplay')">
+            <label class="label">User Image</label>
+            <div id="uploadDisplay">업로드한 사진이 여기에 표시됩니다.</div>
+        </div>
+        <div class="image-box">
+            <label for="referenceInput" class="label">Reference Image</label>
+            <input type="file" id="referenceInput" accept="image/*" onchange="previewFile(this, 'referenceDisplay')">
+            <label class="label">Reference Image</label>
+            <div id="referenceDisplay">참조 이미지가 여기에 표시됩니다.</div>
+        </div>
     </div>
     <div class="result-container">
+        <label class="label">Result Image</label>
         <div id="resultDisplay">
             결과 사진이 여기에 표시됩니다.<br><br>
             대응되는 연예인이 없거나,<br>
             해당 URL에 이미지가 없는 경우<br>
-            결과 사진이 표시되지 않습니다.</div>
+            결과 사진이 표시되지 않습니다.
+        </div>
     </div>
     <div class="celebrity-description">
-        <p id="celebrityDescription"></p>
-        <p id="similarityDescription"></p>
-        <p id="urlDescription"></p>
+        <label class="label">Result of searching celebrities</label>
+        <div class="text-box" id="celebrityDescriptionBox">
+            <p id="celebrityDescription"></p>
+            <p id="similarityDescription"></p>
+            <p id="urlDescription"></p>
+        </div>
     </div>
     <div class="comparison-description">
-        <p id="comparisonDescription"></p>
+        <label class="label">Result of face comparison</label>
+        <div class="text-box" id="comparisonDescriptionBox">
+            <p id="comparisonDescription"></p>
+        </div>
     </div>
     <button onclick="showResult()">결과 보기</button>
 
