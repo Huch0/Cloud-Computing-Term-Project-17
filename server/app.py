@@ -89,7 +89,7 @@ def upload_image():
 
 
 def recognize_celebrities(image):
-    session = boto3.Session(profile_name="jihun")
+    session = boto3.Session()
     client = session.client('rekognition')
     try:
         response = client.recognize_celebrities(
@@ -104,7 +104,7 @@ def recognize_celebrities(image):
 
 
 def compare_faces(source_image, target_image):
-    session = boto3.Session(profile_name="jihun")
+    session = boto3.Session()
     client = session.client('rekognition')
     try:
         response = client.compare_faces(
